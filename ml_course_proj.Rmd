@@ -1,0 +1,86 @@
+---
+title: "ML Course Project"
+author: "Juan Emilio Miralles"
+output: html_document
+date: "2023-04-03"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(caret)
+```
+
+## Background
+
+Our data for this project comprises a large number of exercise data from personal activity devices with accelerometers on the belt, forearm, arm, and dumbell of 6 participants. These exercises were performed in 5 different ways, either correctly or incorrectly. We are going to try to create a model to predict `classe`, the method the exercises were done, based on the accelerometer data.
+
+## Data
+
+We import the data sets, where the training set shows the true value of `classe`, and the testing set does not. We put aside the testing set for the final quiz.
+
+```{r echo=FALSE}
+training <- read.csv("./pml-training.csv")
+quiz <- read.csv("./pml-testing.csv")
+```
+
+## Preprocessing
+
+Now we remove columns with massive number of NA values, which reduces our number of predictors by about 100. The following columns all have 98% NA values so they will not be very useful for building the model.
+
+```{r echo=FALSE}
+col.na.train <- colSums(sapply(training, is.na))
+names(col.na.train[col.na.train == 19216])
+col.na.test <- colSums(sapply(quiz, is.na))
+training <- training[,col.na.train == 0 & col.na.test == 0]
+quiz <- quiz[,col.na.train == 0 & col.na.test == 0]
+```
+Here are our remaining predictors:
+
+```{r echo=FALSE}
+names(training)
+```
+
+## Training models
+
+We split the training set into training and testing subsets.
+
+```{r echo=FALSE}
+inTrain <- createDataPartition(y=training$classe, p=0.75, list=FALSE)
+
+training <- training[inTrain,]
+testing <- training[-inTrain,]
+```
+
+A quick look at the data we are to predict, `classe` takes on one of 5 categories for the manner of doing the exercise.
+
+```{r echo=FALSE, fig.height=6, fig.width=10}
+g = ggplot(data=training, aes(x=classe))
+g = g + geom_bar()
+g
+```
+
+We perform random forest training with 3 subsample cross validation directly through the caret train function with trainControl.
+
+```{r echo=FALSE, warning=FALSE}
+trControl <- trainControl(method="cv", number=3, allowParallel = TRUE)
+modFitRF <- train(factor(classe) ~., data=training, method="rf", preProcess="pca", trControl=trControl)
+modFitRF
+```
+
+We can now check our model against the testing subset we made earlier.
+
+```{r echo=FALSE}
+predRF <- predict(modFitRF, newdata=testing)
+confusionMatrix(predRF, factor(testing$classe))
+```
+
+The confusion matrix on the testing set shows perfect accuracy. Though due to overfitting, the out of sample accuracy is likely between 90-95%.
+
+## Predictions on the quiz set
+
+Now that we have this model, we can predict our unknown `classe` values from the quiz data set:
+
+```{r echo=FALSE}
+predRF <- predict(modFitRF, newdata=quiz)
+predRF
+```
